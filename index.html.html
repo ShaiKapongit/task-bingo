@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#efe9dc">
+<title>Task Bingo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:ital,wght@0,400;0,600;0,700;1,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* printed-paper palette */
+    --paper:#efe9dc; --paper2:#e6dfcd;
+    --paper-card:#f7f4ec;     /* near-white cream for general (non-category) cards */
+    --ink:#7a2e3a;            /* maroon headline + rules */
+    --cell-ink:#3a3026;       /* dark brown cell text */
+    --muted:#9a8f7d;          /* faded ink for captions */
+    --line:#cabfa6;           /* hairline rule on paper */
+    --card-line:rgba(58,48,38,.45); /* gridlines drawn on a colored card */
+    --win:#7a2e3a;
+    /* category card colors, lifted from the reference */
+    --c-home:#e8b93f;         /* mustard */
+    --c-school:#c4d04a;       /* lime */
+    --c-craft:#5a9b8e;        /* faded teal */
+    --c-a:#d97742;            /* burnt orange */
+    --c-b:#cbb38f;            /* kraft */
+    --c-c:#b6c7c0;            /* pale sage */
+    --c-uncat:#b3a89a;        /* grey for uncategorized */
+    --radius:2px;             /* squared, printed corners */
+    font-size:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--paper);
+    color:var(--cell-ink);
+    font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 14px);
+    overscroll-behavior:none;
+  }
+  /* faint paper grain */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(0,0,0,.025) 0 1px, transparent 1px) 0 0/7px 7px,
+      radial-gradient(circle at 70% 60%, rgba(0,0,0,.02) 0 1px, transparent 1px) 0 0/11px 11px;
+    opacity:.6;
+  }
+  h1{
+    font-family:"Anton",Impact,sans-serif; font-weight:400;
+    letter-spacing:.01em; font-size:2rem; margin:20px 2px 0;
+    color:var(--ink); text-transform:uppercase; line-height:1;
+  }
+  .sub{color:var(--muted); margin:6px 2px 16px; font-size:.82rem; font-style:italic;}
+
+  .tabs{display:flex; gap:8px; overflow-x:auto; padding:2px 2px 12px; scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{
+    flex:0 0 auto; padding:8px 15px; border-radius:var(--radius);
+    background:transparent; border:1.5px solid var(--ink); color:var(--ink);
+    font-weight:700; font-size:.8rem; cursor:pointer; white-space:nowrap; text-transform:uppercase; letter-spacing:.04em;
+  }
+  .tab.active{background:var(--ink); color:var(--paper);}
+
+  /* horizontal scroller holding the bingo cards */
+  .boards-scroller{
+    display:flex; gap:18px; overflow-x:auto; scroll-snap-type:x mandatory;
+    justify-content:safe center;
+    margin:6px -14px 10px; padding:6px 14px 4px; scrollbar-width:none; position:relative; z-index:1;
+  }
+  .boards-scroller::-webkit-scrollbar{display:none;}
+  .board-page{flex:0 0 auto; scroll-snap-align:center;}
+
+  /* the printed card */
+  .card{
+    background:var(--card, var(--c-home));
+    padding:16px 16px 20px; border-radius:var(--radius);
+    width:min(80vw, 320px);
+    box-shadow:0 10px 24px rgba(80,60,30,.22), 0 1px 0 rgba(255,255,255,.3) inset;
+  }
+  .card-rule{border-top:2px solid var(--cell-ink); border-bottom:2px solid var(--cell-ink); height:4px; margin-bottom:6px;}
+  .card-masthead{
+    font-family:"Anton",Impact,sans-serif; color:var(--cell-ink);
+    font-size:2.5rem; line-height:.9; letter-spacing:.01em; text-transform:uppercase;
+    margin:0 0 2px;
+  }
+  .card-sub{
+    font-size:.62rem; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--cell-ink); opacity:.8; margin-bottom:12px;
+  }
+
+  .board{
+    display:grid; gap:0;
+    border:1.5px solid var(--card-line);
+  }
+  .cell{
+    position:relative; aspect-ratio:1;
+    border:.75px solid var(--card-line);
+    background:transparent;
+    padding:6px 6px 6px 10px; display:flex; flex-direction:column; justify-content:center;
+    align-items:center; text-align:center; cursor:pointer;
+    transition:transform .12s ease, background .2s;
+    overflow:hidden; color:var(--cell-ink);
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  }
+  .cell:active{transform:scale(.96);}
+  .cell .txt{font-size:.6rem; font-weight:600; line-height:1.12; word-break:break-word;}
+  .dots{display:flex; justify-content:center; gap:7px; margin:2px 0 18px; position:relative; z-index:1;}
+  .dots .d{width:7px; height:7px; border-radius:50%; background:var(--line); transition:background .2s, transform .2s;}
+  .dots .d.on{background:var(--ink); transform:scale(1.25);}
+  .cell .age{
+    position:absolute; top:4px; right:5px; font-size:.52rem;
+    color:var(--cell-ink); opacity:.55; font-weight:700;
+  }
+  .cell .dur{
+    position:absolute; bottom:4px; left:0; right:0; text-align:center;
+    font-size:.5rem; color:var(--cell-ink); opacity:.7; font-weight:700; font-style:italic;
+  }
+  .subbars{position:absolute; bottom:4px; left:0; right:0; display:flex; justify-content:center; gap:3px; padding:0 6px;}
+  .subbars .sb{width:3px; height:10px; background:var(--cell-ink); opacity:.8; border-radius:1px; position:relative;}
+  .subbars .sb.done{opacity:.35;}
+  .subbars .sb.done::after{content:""; position:absolute; left:-1px; right:-1px; top:50%; height:1.5px; background:var(--ink); transform:rotate(-20deg);}
+  /* category shown as a thick stripe down the left edge of the cell */
+  .cell .cat{
+    position:absolute; left:0; top:0; bottom:0; width:6px;
+    border-radius:0; /* override the old dot rounding */
+  }
+  /* on colored category cards the whole card already shows the category — hide the stripe there */
+  .card.is-category .cell .cat{display:none;}
+  /* completed real task: ink stamp */
+  .cell.done{background:rgba(58,48,38,.12);}
+  .cell.done .txt{text-decoration:line-through; opacity:.7;}
+  /* free cell: the star */
+  .cell.free .txt{font-size:.5rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; opacity:.85;}
+  .cell.free::before{
+    content:"★"; font-size:1.5rem; color:var(--cell-ink); opacity:.9; line-height:1; margin-bottom:1px;
+  }
+  .cell.winline{animation:stamp .5s ease;}
+  @keyframes stamp{0%{transform:scale(1)}40%{transform:scale(1.08); background:rgba(122,46,58,.25)}100%{transform:scale(1)}}
+
+  .bar{display:flex; gap:10px; margin:0 2px 16px; flex-wrap:wrap; position:relative; z-index:1;}
+  .btn{
+    flex:1; min-width:90px; padding:13px 8px; border-radius:var(--radius); border:1.5px solid var(--ink);
+    font-weight:700; font-size:.8rem; cursor:pointer; text-transform:uppercase; letter-spacing:.04em;
+    background:transparent; color:var(--ink);
+  }
+  .btn.primary{background:var(--ink); color:var(--paper);}
+  .btn:active{transform:scale(.97);}
+  /* prominent add call-to-action under the header */
+  .add-cta{width:100%; margin:0 0 16px; padding:15px; font-size:.95rem; letter-spacing:.06em; box-shadow:0 4px 0 rgba(122,46,58,.25);}
+  /* quieter utility row (shuffle/tidy) */
+  .bar.utility{margin-top:2px;}
+  .clear-all{
+    display:block; margin:4px auto 18px; background:none; border:none;
+    color:var(--muted); font-size:.72rem; font-weight:600; cursor:pointer;
+    text-decoration:underline; text-underline-offset:3px; letter-spacing:.02em;
+  }
+  .clear-all:active{color:var(--ink);}
+  .staged-head{font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:18px 2px 8px; border-bottom:1.5px solid var(--line); padding-bottom:8px;}
+  .finished-section{margin:8px 2px 26px; position:relative; z-index:1;}
+  .finished-head{display:flex; justify-content:flex-end; padding:8px 0 4px;}
+  .finished-head span{font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+  .clear-history{background:none; border:none; color:var(--muted); font-size:.68rem; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
+  .clear-history:active{color:var(--ink);}
+  .show-all{display:block; width:100%; margin-top:8px; background:none; border:1.5px dashed var(--line); color:var(--muted); font-size:.74rem; font-weight:700; padding:9px; border-radius:var(--radius); cursor:pointer; text-transform:uppercase; letter-spacing:.04em;}
+  .show-all:active{color:var(--ink);}
+  /* stats */
+  .stats-section{margin:0 2px 40px; position:relative; z-index:1;}
+  .stats-toggle{
+    background:none; border:none; color:var(--ink); cursor:pointer;
+    font-family:"Anton",Impact,sans-serif; font-size:1.1rem; text-transform:uppercase; letter-spacing:.02em;
+    padding:0; margin-bottom:4px;
+  }
+  .stats-body{padding-top:8px;}
+  .stat-row{display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; border-bottom:1px solid var(--line); font-size:.84rem;}
+  .stat-row .k{color:var(--cell-ink);}
+  .stat-row .v{font-weight:700; color:var(--ink);}
+  .stat-group-title{font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:18px 0 6px;}
+  .ratio-bar{display:flex; height:22px; border-radius:var(--radius); overflow:hidden; border:1.5px solid var(--cell-ink); margin:10px 0 6px;}
+  .ratio-seg{height:100%;}
+  .ratio-legend{display:flex; flex-wrap:wrap; gap:4px 14px; margin-bottom:6px;}
+  .ratio-legend .rl{display:flex; align-items:center; gap:6px; font-size:.76rem; color:var(--cell-ink);}
+  .ratio-legend .rl i{width:11px;height:11px;border-radius:2px;}
+  .stats-empty{color:var(--muted); font-style:italic; font-size:.82rem; padding:6px 0;}
+  .rep-lbl{display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--cell-ink); flex:0 0 auto; white-space:nowrap;}
+  .reward-group-title{font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:18px 0 6px;}
+  .rw-tier{font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 6px; border-radius:999px; border:1.5px solid var(--line); color:var(--muted);}
+  .earned-item{opacity:1;}
+  .earned-item.redeemed{opacity:.5;}
+  .earned-item.redeemed .nm{text-decoration:line-through;}
+  .reward-card{text-align:center;}
+  .reward-burst{font-size:3rem; margin-bottom:6px; animation:rwpop .6s ease;}
+  @keyframes rwpop{0%{transform:scale(.3) rotate(-15deg); opacity:0;}60%{transform:scale(1.2) rotate(8deg);}100%{transform:scale(1) rotate(0); opacity:1;}}
+  .reward-name{font-family:"Anton",Impact,sans-serif; font-size:1.5rem; color:var(--ink); margin:4px 0 18px; line-height:1.1;}
+  .sub-edit-title{font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:14px 0 6px;}
+  .sub-item{display:flex; align-items:center; gap:9px; background:var(--paper); border:1.5px solid var(--line); border-radius:var(--radius); padding:8px 11px;}
+  .sub-item input[type=checkbox]{width:18px; height:18px; flex:0 0 auto;}
+  .sub-item .nm{flex:1; font-size:.85rem;}
+  .sub-item.done .nm{text-decoration:line-through; color:var(--muted);}
+  .sub-item .x{color:var(--muted); cursor:pointer; font-size:1.1rem;}
+  .btn.ghost{background:transparent; border:1.5px dashed var(--line); color:var(--muted); font-size:.74rem; padding:10px 8px;}
+  /* view toggle (To add / Finished) — underline tabs, clearly NOT action buttons */
+  .viewtabs{display:flex; gap:20px; margin:20px 2px 10px; border-bottom:1.5px solid var(--line);}
+  .viewtab{
+    border:none; background:transparent; color:var(--muted); cursor:pointer;
+    font-weight:700; font-size:.82rem; text-transform:uppercase; letter-spacing:.05em;
+    padding:6px 2px 10px; margin-bottom:-1.5px; border-bottom:2.5px solid transparent;
+  }
+  .viewtab.on{color:var(--ink); border-bottom-color:var(--ink);}
+
+  .seg{display:flex; background:transparent; border:1.5px solid var(--ink); border-radius:var(--radius); padding:3px; margin:0 2px 16px; position:relative; z-index:1;}
+  .seg button{flex:1; border:none; background:transparent; color:var(--ink); padding:9px; border-radius:var(--radius); font-weight:700; font-size:.78rem; cursor:pointer; text-transform:uppercase; letter-spacing:.03em;}
+  .seg button.on{background:var(--ink); color:var(--paper);}
+
+  .panel{background:var(--paper2); border:1.5px solid var(--ink); border-radius:var(--radius); padding:16px; margin:0 2px 16px; position:relative; z-index:1;}
+  .panel h2{margin:0 0 12px; font-size:1rem; font-weight:700;}
+  .addtabs{display:flex; gap:8px; margin-bottom:14px;}
+  .addtab{flex:1; padding:9px; border-radius:var(--radius); border:1.5px solid var(--ink); background:transparent; color:var(--ink); font-weight:700; font-size:.8rem; cursor:pointer; text-transform:uppercase; letter-spacing:.03em;}
+  .addtab.on{background:var(--ink); color:var(--paper);}
+  textarea{width:100%; padding:12px; border-radius:var(--radius); border:1.5px solid var(--line); background:var(--paper); color:var(--cell-ink); font-size:.9rem; font-family:inherit; resize:vertical; line-height:1.4;}
+  textarea::placeholder{color:var(--muted);}
+  .hint{flex:1; color:var(--muted); font-size:.74rem; align-self:center; padding-left:4px; font-style:italic;}
+  .note{color:var(--muted); font-size:.72rem; font-style:italic; margin:-2px 2px 12px; line-height:1.4;}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; margin:0 2px 18px; position:relative; z-index:1;}
+  .chip{display:flex; align-items:center; gap:6px; font-size:.74rem; font-weight:600; color:var(--cell-ink); background:transparent; border:1.5px solid var(--line); padding:5px 11px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em;}
+  .chip-x{margin-left:2px; color:var(--muted); font-weight:700; cursor:pointer; font-size:.95rem; line-height:1; padding:0 1px;}
+  .chip-x:active{color:var(--ink);}
+  .chip i{width:11px;height:11px;border-radius:2px; display:inline-block;}
+  /* help button + rules overlay */
+  .help-btn{
+    font-family:"Work Sans",sans-serif; font-size:.95rem; font-weight:700;
+    width:26px; height:26px; border-radius:50%; border:2px solid var(--ink);
+    background:transparent; color:var(--ink); cursor:pointer; vertical-align:middle;
+    margin-left:6px; line-height:1; padding:0;
+  }
+  .help-btn:active{background:var(--ink); color:var(--paper);}
+  .title-edit{
+    font-size:.85rem; background:none; border:none; color:var(--muted); cursor:pointer;
+    vertical-align:middle; padding:0 2px; margin-left:2px;
+  }
+  .title-edit:active{color:var(--ink);}
+  .rules-overlay{
+    position:fixed; inset:0; z-index:100; background:rgba(40,30,20,.55);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .rules-card{
+    background:var(--paper); border:2px solid var(--cell-ink); border-radius:var(--radius);
+    max-width:420px; width:100%; max-height:82vh; overflow-y:auto; padding:22px 20px;
+    box-shadow:0 18px 50px rgba(40,30,20,.5); position:relative;
+  }
+  .rules-card h2{font-family:"Anton",Impact,sans-serif; color:var(--ink); font-size:1.5rem; text-transform:uppercase; margin:0 0 14px;}
+  .rules-card p{font-size:.86rem; line-height:1.5; margin:0 0 11px; color:var(--cell-ink);}
+  .rules-card b{color:var(--ink);}
+  .rules-close{
+    position:absolute; top:12px; right:14px; background:none; border:none;
+    font-size:1.6rem; color:var(--muted); cursor:pointer; line-height:1; padding:0;
+  }
+  .rules-close:active{color:var(--ink);}
+
+  .row{display:flex; gap:8px; margin-bottom:9px;}
+  input,select{
+    flex:1; padding:12px; border-radius:var(--radius); border:1.5px solid var(--line);
+    background:var(--paper); color:var(--cell-ink); font-size:.9rem; font-family:inherit;
+  }
+  input::placeholder{color:var(--muted);}
+  .tasklist{display:flex; flex-direction:column; gap:7px; margin-top:6px;}
+  .tl-item{display:flex; align-items:center; gap:9px; background:var(--paper); border:1.5px solid var(--line); border-radius:var(--radius); padding:10px 12px;}
+  .tl-item .nm{flex:1; font-size:.85rem;}
+  .tl-item .x{color:var(--muted); cursor:pointer; font-size:1.2rem; padding:0 4px;}
+  .tl-item .done-dur{color:var(--ink); font-size:.72rem; font-weight:700; white-space:nowrap; font-style:italic;}
+  .tl-item i{width:11px;height:11px;border-radius:2px;}
+
+  .empty{color:var(--muted); text-align:center; padding:34px 16px; font-size:.9rem; font-style:italic; position:relative; z-index:1;}
+
+  /* celebration */
+  #fx{position:fixed; inset:0; pointer-events:none; z-index:50;}
+  .conf{position:absolute; width:9px;height:13px; top:-20px; animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(110vh) rotate(720deg); opacity:.2;}}
+  .toast{
+    position:fixed; left:50%; top:38%; transform:translate(-50%,-50%) rotate(-6deg) scale(.7);
+    background:var(--ink); color:var(--paper); font-family:"Anton",Impact,sans-serif; font-size:2rem;
+    padding:14px 32px; border-radius:var(--radius); z-index:60; opacity:0; text-transform:uppercase; letter-spacing:.05em;
+    box-shadow:0 12px 30px rgba(80,60,30,.4); pointer-events:none; border:3px solid var(--paper);
+  }
+  .toast.show{animation:cheer 1.6s ease forwards;}
+  @keyframes cheer{15%{opacity:1; transform:translate(-50%,-50%) rotate(-6deg) scale(1.05)}80%{opacity:1; transform:translate(-50%,-50%) rotate(-6deg) scale(1)}100%{opacity:0; transform:translate(-50%,-50%) rotate(-6deg) scale(.9)}}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001s !important;}
+  }
+</style>
+</head>
+<body>
+  <h1><span id="appTitle">Task Bingo</span> <button class="title-edit" id="titleEdit" aria-label="Rename">✎</button> <button class="help-btn" id="helpBtn" aria-label="Rules">?</button></h1>
+  <p class="sub">What will you get done? Clear a row, column, or diagonal.</p>
+
+  <div class="rules-overlay" id="rulesOverlay" style="display:none;">
+    <div class="rules-card">
+      <button class="rules-close" id="rulesClose" aria-label="Close">×</button>
+      <h2>How to play</h2>
+      <p><b>Add tasks</b> to fill a board. The board sizes itself to fit, padding the rest with free cells.</p>
+      <p><b>Tap a task</b> when you finish it — it gets crossed off and its time is recorded.</p>
+      <p><b>Bingo:</b> complete a full row, column, or diagonal where most of the cells are real tasks (not free spaces).</p>
+      <p><b>Small boards (3×3):</b> a bingo line just gives a little flash and your done tasks stay put. The full celebration plays when you finish the whole board.</p>
+      <p><b>Bigger boards:</b> a bingo clears those tasks, celebrates, and reshuffles the rest.</p>
+      <p><b>Categories:</b> switch to “A board per category” to give each category its own colored card. In “One board”, a colored stripe shows each task’s category.</p>
+      <p><b>Free cells:</b> tap one to drop in a new task on the spot.</p>
+      <p><b>Edit a task:</b> long-press any task to change its text or category, mark it done, add subtasks, or delete it. A task can also have no category.</p>
+      <p><b>Subtasks:</b> give a task smaller steps (e.g. "Read the series" → Book 1–4). Little bars on the cell show progress; the task finishes when every subtask is checked, or when you tap the task itself.</p>
+      <p><b>Rename:</b> tap the ✎ by the title to name your board whatever you like.</p>
+      <p><b>Rewards:</b> in the Rewards section you can list real-world treats to earn. A line bingo wins a <b>Small</b> reward, finishing a whole board wins a <b>Big</b> one, and every 3 boards unlocks a <b>Premium</b> reward. Each can be repeatable or one-time. Earned rewards collect in a list you tap to redeem.</p>
+      <p><b>Buttons:</b> Shuffle re-arranges, Tidy merges boards into the fewest, Clear all starts fresh. Finished and Stats live at the bottom.</p>
+    </div>
+  </div>
+
+  <div class="seg" id="modeSeg">
+    <button data-mode="combined">One board</button>
+    <button data-mode="split">A board per category</button>
+  </div>
+
+  <button class="btn primary add-cta" id="addBtn">+ Add tasks</button>
+
+  <div class="panel" id="addPanel" style="display:none;">
+    <div class="row">
+      <input id="taskInput" placeholder="e.g. Email teacher, Pack bag, Call mom" autocomplete="off">
+    </div>
+    <p class="note">Tip: separate multiple tasks with commas (or new lines) to add several at once — they'll all use the category below.</p>
+    <div class="row">
+      <select id="catSelect"></select>
+      <input id="newCat" placeholder="…or new category" autocomplete="off" style="flex:0 0 46%;">
+    </div>
+    <div class="row">
+      <button class="btn" id="saveTask" style="flex:1;">Add to list</button>
+      <button class="btn primary" id="sendBoard" style="flex:1;">Send to board</button>
+    </div>
+
+    <div class="staged-head">To add</div>
+    <div class="tasklist" id="stagedList"></div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="legend" id="legend"></div>
+
+  <div id="boardWrap"></div>
+
+  <div class="bar utility">
+    <button class="btn ghost" id="shuffleBtn">Shuffle</button>
+    <button class="btn ghost" id="tidyBtn">Tidy boards</button>
+  </div>
+  <button class="clear-all" id="clearBtn">Clear all tasks</button>
+
+  <div class="stats-section" id="statsSection">
+    <button class="stats-toggle" id="statsToggle">▸ Stats</button>
+    <div class="stats-body" id="statsBody" style="display:none;"></div>
+  </div>
+
+  <div class="stats-section" id="finishedSection" style="display:none;">
+    <button class="stats-toggle" id="finishedToggle">▸ Finished</button>
+    <div class="stats-body" id="finishedBody" style="display:none;">
+      <div class="finished-head">
+        <button class="clear-history" id="clearHistoryBtn">Clear history</button>
+      </div>
+      <div class="tasklist" id="finishedList"></div>
+      <button class="show-all" id="showAllBtn" style="display:none;"></button>
+    </div>
+  </div>
+
+  <div class="stats-section" id="rewardsSection">
+    <button class="stats-toggle" id="rewardsToggle">▸ Rewards</button>
+    <div class="stats-body" id="rewardsBody" style="display:none;">
+      <p class="note">Define rewards you'll earn from bingos. Small = any line bingo · Big = finish a whole board · Premium = every 3 boards.</p>
+      <div class="row"><input id="rewardText" placeholder="e.g. Coffee out, that top I want" autocomplete="off"></div>
+      <div class="row">
+        <select id="rewardTier">
+          <option value="small">Small</option>
+          <option value="big">Big</option>
+          <option value="premium">Premium</option>
+        </select>
+        <label class="rep-lbl"><input type="checkbox" id="rewardRepeat" checked> Repeatable</label>
+      </div>
+      <button class="btn primary" id="rewardAdd" style="width:100%;">Add reward</button>
+
+      <div class="reward-group-title">Your rewards</div>
+      <div class="tasklist" id="rewardList"></div>
+
+      <div class="reward-group-title">Earned — tap to redeem</div>
+      <div class="tasklist" id="earnedList"></div>
+    </div>
+  </div>
+
+  <div id="fx"></div>
+
+  <div class="rules-overlay" id="rewardOverlay" style="display:none;">
+    <div class="rules-card reward-card">
+      <div class="reward-burst">🎁</div>
+      <h2>Reward unlocked!</h2>
+      <p class="reward-name" id="rewardName"></p>
+      <button class="btn primary" id="rewardOk" style="width:100%;">Nice!</button>
+    </div>
+  </div>
+
+  <div class="rules-overlay" id="editOverlay" style="display:none;">
+    <div class="rules-card">
+      <button class="rules-close" id="editClose" aria-label="Close">×</button>
+      <h2>Edit task</h2>
+      <div class="row"><input id="editText" placeholder="Task" autocomplete="off"></div>
+      <div class="row"><select id="editCat"></select></div>
+      <div class="sub-edit-title">Subtasks</div>
+      <div class="tasklist" id="editSubs"></div>
+      <div class="row">
+        <input id="editSubInput" placeholder="Add a subtask (e.g. Book 1)" autocomplete="off">
+        <button class="btn" id="editSubAdd" style="flex:0 0 64px;">Add</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="editDone" style="flex:1;">Mark done</button>
+        <button class="btn primary" id="editSave" style="flex:1;">Save</button>
+      </div>
+      <button class="clear-history" id="editDelete" style="margin-top:6px;">Delete task</button>
+    </div>
+  </div>
+
+<script>
+const COLORS = ["--c-home","--c-school","--c-craft","--c-a","--c-b","--c-c"];
+const UNCAT = "Uncategorized";       // built-in catch-all category
+const DAY = 86400000, HOUR = 3600000, MIN = 60000;
+
+const isFreshStart = !load();
+let state = load() || {
+  mode:"combined",
+  activeTab:"All",
+  activeBoard:0,                 // which sub-board is shown in combined mode
+  categories:{ "Home":"--c-home", "School":"--c-school", "Craft":"--c-craft" },
+  tasks:[],                      // {id,text,cat,added,done,completedAt}
+  staged:[],                     // {text,cat} not yet sent to the board
+  finished:[],                   // archived completed tasks (history)
+  bingos:0,                      // total bingos achieved
+  title:"Task Bingo",            // customizable app title
+  rewards:[],                    // {id,text,tier:'small'|'big'|'premium',repeatable,used}
+  earned:[],                     // {id,text,tier,at,redeemed}
+  boardsCompleted:0,             // counts full-board completions (for premium every 3)
+  // layouts[key] is an ARRAY of boards, each {side, slots:[taskId|"free"]}
+  layouts:{},
+  seed:Date.now()
+};
+// migrate older saved state
+if(!state.layouts) state.layouts={};
+if(!state.staged) state.staged=[];
+if(!state.finished) state.finished=[];
+if(state.bingos==null) state.bingos=0;
+if(!state.title) state.title="Task Bingo";
+if(!state.rewards) state.rewards=[];
+if(!state.earned) state.earned=[];
+if(state.boardsCompleted==null) state.boardsCompleted=0;
+if(state.activeBoard==null) state.activeBoard=0;
+// older saves stored a single board object per key; wrap it in an array
+for(const k in state.layouts){
+  if(state.layouts[k] && !Array.isArray(state.layouts[k])) state.layouts[k]=[state.layouts[k]];
+}
+// seed a few starter rewards for brand-new users (edit or delete freely)
+if(isFreshStart && state.rewards.length===0){
+  state.rewards=[
+    {id:uid(), text:"Coffee or a nice drink out",   tier:"small",   repeatable:true,  used:false},
+    {id:uid(), text:"15 min guilt-free scrolling",  tier:"small",   repeatable:true,  used:false},
+    {id:uid(), text:"A square of good chocolate",    tier:"small",   repeatable:true,  used:false},
+    {id:uid(), text:"Order takeout tonight",         tier:"big",     repeatable:true,  used:false},
+    {id:uid(), text:"An episode of your show",       tier:"big",     repeatable:true,  used:false},
+    {id:uid(), text:"That thing in your cart",       tier:"premium", repeatable:false, used:false},
+    {id:uid(), text:"A proper day off",              tier:"premium", repeatable:false, used:false}
+  ];
+}
+
+// ---------- persistence ----------
+function save(){ try{ localStorage.setItem("taskBingo", JSON.stringify(state)); }catch(e){} }
+function load(){ try{ return JSON.parse(localStorage.getItem("taskBingo")); }catch(e){ return null; } }
+
+// ---------- helpers ----------
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function catColor(c){
+  if(c===UNCAT) return "var(--c-uncat)";
+  return `var(${state.categories[c]||"--c-uncat"})`;
+}
+// make sure Uncategorized is registered as a real category iff any task uses it
+function syncUncat(){
+  const used = state.tasks.some(t=>t.cat===UNCAT) || state.staged.some(s=>s.cat===UNCAT);
+  if(used && !state.categories[UNCAT]) state.categories[UNCAT]="--c-uncat";
+  if(!used && state.categories[UNCAT]) delete state.categories[UNCAT];
+}
+
+// discrete progress bars for subtasks: one | per subtask, struck through when done
+function subBars(t){
+  if(!t.subs||!t.subs.length) return "";
+  return t.subs.map(s=>`<i class="sb${s.done?' done':''}"></i>`).join("");
+}
+
+function ageLabel(t){
+  const d = Math.floor((Date.now()-t.added)/DAY);
+  if(d>=1) return d+"d";
+  const h = Math.floor((Date.now()-t.added)/HOUR);
+  return h>=1 ? h+"h" : "new";
+}
+// how long a task took, from when it was ADDED to when it was completed
+function durationLabel(t){
+  if(!t.completedAt) return "";
+  return "took "+fmtMs(t.completedAt - t.added);
+}
+// format a millisecond span compactly
+function fmtMs(ms){
+  if(ms<MIN) return "<1m";
+  const d=Math.floor(ms/DAY), h=Math.floor(ms/HOUR), m=Math.floor(ms/MIN);
+  if(d>=1){ const rh=Math.floor((ms-d*DAY)/HOUR); return rh?`${d}d ${rh}h`:`${d}d`; }
+  if(h>=1){ const rm=Math.floor((ms-h*HOUR)/MIN); return rm?`${h}h ${rm}m`:`${h}h`; }
+  return `${m}m`;
+}
+
+function shuffled(arr, seed){
+  const a=arr.slice(); let s=seed||1;
+  for(let i=a.length-1;i>0;i--){ s=(s*9301+49297)%233280; const j=Math.floor(s/233280*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function gridSizeFor(n){
+  let side = Math.ceil(Math.sqrt(Math.max(n,1)));
+  return Math.max(side,3);            // min 3x3 to be a real bingo board
+}
+
+// ---------- board model ----------
+// combined mode: ONE layout key holding an array of boards (overflow boards).
+// split mode: one layout key per category, each holding a single-board array.
+function layoutKey(tab){ return state.mode==="combined" ? "__combined__" : tab; }
+
+function allTasksForTab(tab){            // includes done tasks
+  if(state.mode==="combined" || tab==="All") return state.tasks.slice();
+  return state.tasks.filter(t=>t.cat===tab);
+}
+function liveTasksForTab(tab){ return allTasksForTab(tab).filter(t=>!t.done); }
+
+// every task id currently placed somewhere in this key's boards
+function placedIds(key){
+  const boards=state.layouts[key]||[];
+  const s=new Set();
+  boards.forEach(b=>b.slots.forEach(x=>{ if(x!=="free") s.add(x); }));
+  return s;
+}
+
+// make a single fresh board from a list of task ids
+function makeBoard(ids, seed){
+  const side=gridSizeFor(ids.length);
+  const total=side*side;
+  // fill the remaining cells with "free", then shuffle EVERYTHING together
+  // so free cells are scattered through the board, not stuck at the bottom.
+  const slots=ids.slice(0,total);
+  while(slots.length<total) slots.push("free");
+  return {side, slots:shuffled(slots, seed)};
+}
+
+// (re)build the whole board array for a key from scratch.
+// places ALL of the tab's tasks that are still in play (live + done-not-yet-cleared),
+// so a completed task keeps its crossed-off cell even across a mode switch.
+function rebuildBoards(tab, seed){
+  const key=layoutKey(tab);
+  const ids=allTasksForTab(tab).map(t=>t.id);
+  state.layouts[key]=[ makeBoard(ids, seed) ];
+  save();
+}
+
+// validate: are all in-play tasks placed, and all placed ids still valid?
+function boardsValid(tab){
+  const key=layoutKey(tab);
+  const boards=state.layouts[key];
+  if(!boards || !boards.length) return false;
+  const placed=placedIds(key);
+  const inPlay=allTasksForTab(tab).map(t=>t.id);   // live + done-not-cleared
+  // every in-play task (including completed ones) must still be placed
+  for(const id of inPlay){ if(!placed.has(id)) return false; }
+  // every placed id must still exist as a task
+  for(const id of placed){ if(!state.tasks.find(t=>t.id===id)) return false; }
+  return true;
+}
+
+function ensureBoards(tab){
+  if(!state.layouts) state.layouts={};
+  if(!boardsValid(tab)) rebuildBoards(tab, state.seed);
+  const key=layoutKey(tab);
+  if(state.activeBoard >= state.layouts[key].length) state.activeBoard=0;
+  return state.layouts[key];
+}
+
+// turn one board's slots into render-ready cells
+function cellsFor(board){
+  return board.slots.map((id,i)=>{
+    if(id==="free") return {free:true, id:"free-"+i, done:true, text:null};
+    const t=state.tasks.find(x=>x.id===id);
+    if(!t) return {free:true, id:"free-"+i, done:true, text:null};
+    return t;
+  });
+}
+
+// indices of free (unoccupied) slots on a board
+function freeSlots(board){
+  const out=[]; board.slots.forEach((x,i)=>{ if(x==="free") out.push(i); }); return out;
+}
+
+// ---------- bingo detection ----------
+function isCellDone(c){ return c.free ? c.done : !!c.done; }
+// a completed line where the majority of cells are real tasks
+function findLineBingo(side, cells, preferIndex){
+  const lines=[];
+  for(let r=0;r<side;r++) lines.push([...Array(side)].map((_,c)=>r*side+c));
+  for(let c=0;c<side;c++) lines.push([...Array(side)].map((_,r)=>r*side+c));
+  lines.push([...Array(side)].map((_,i)=>i*side+i));
+  lines.push([...Array(side)].map((_,i)=>i*side+(side-1-i)));
+  const requiredReal = Math.floor(side/2) + 1;  // majority of the line is real
+  const wins=lines.filter(line =>
+    line.every(i=>isCellDone(cells[i])) &&
+    line.filter(i=>!cells[i].free).length >= requiredReal
+  );
+  if(wins.length===0) return null;
+  // prefer a winning line that contains the cell the user just completed
+  if(preferIndex!=null){
+    const withCell=wins.find(line=>line.includes(preferIndex));
+    if(withCell) return withCell;
+  }
+  return wins[0];
+}
+// is the whole board complete? (every real task done)
+function isBoardComplete(cells){
+  const real=cells.filter(c=>!c.free);
+  return real.length>0 && real.every(c=>c.done);
+}
+// kept for any external callers — full-line all-real (unused by main flow now)
+function findWin(side, cells){ return findLineBingo(side, cells); }
+
+// build one board's grid element. cardCat = category for this card (null in combined mode)
+function buildGrid(board, cardCat){
+  const cells=cellsFor(board);
+  const grid=document.createElement("div");
+  grid.className="board";
+  grid.style.gridTemplateColumns=`repeat(${board.side},1fr)`;
+  cells.forEach((c,i)=>{
+    const el=document.createElement("div");
+    el.className="cell"+(c.free?" free":"")+(!c.free&&c.done?" done":"");
+    if(c.free){
+      el.innerHTML=`<span class="txt">Free</span>`;
+      el.onclick=()=>fillFree(board,i,cardCat);
+    } else if(c.done){
+      el.innerHTML=`<span class="cat" style="background:${catColor(c.cat)}"></span>
+                    <span class="txt">${c.text}</span>
+                    <span class="dur">${durationLabel(c)}</span>`;
+      attachCellGestures(el, c.id);
+    } else {
+      const bars = (c.subs&&c.subs.length) ? `<span class="subbars">${subBars(c)}</span>` : "";
+      el.innerHTML=`<span class="cat" style="background:${catColor(c.cat)}"></span>
+                    <span class="age">${ageLabel(c)}</span>
+                    <span class="txt">${c.text}</span>
+                    ${bars}`;
+      attachCellGestures(el, c.id);
+    }
+    grid.appendChild(el);
+  });
+  return grid;
+}
+
+// tap = complete/uncomplete; long-press (500ms) = open editor
+function attachCellGestures(el, taskId){
+  let timer=null, longFired=false;
+  const start=()=>{ longFired=false; timer=setTimeout(()=>{ longFired=true; if(navigator.vibrate) navigator.vibrate(15); openEditor(taskId); }, 500); };
+  const cancel=()=>{ if(timer){ clearTimeout(timer); timer=null; } };
+  el.addEventListener("touchstart", start, {passive:true});
+  el.addEventListener("touchend", cancel);
+  el.addEventListener("touchmove", cancel, {passive:true});
+  el.addEventListener("mousedown", start);
+  el.addEventListener("mouseup", cancel);
+  el.addEventListener("mouseleave", cancel);
+  el.onclick=()=>{ if(longFired){ longFired=false; return; } toggleDone(taskId, el); };
+}
+
+// ---------- render ----------
+function render(){
+  syncUncat();   // register/unregister the Uncategorized category as needed
+  const tabsEl=document.getElementById("tabs");
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on", b.dataset.mode===state.mode));
+  if(typeof renderFinished==="function") renderFinished();   // keep the Finished section in sync
+  if(typeof renderStats==="function" && statsOpen) renderStats();
+
+  // No category tabs anymore — split mode shows all categories as swipeable cards.
+  tabsEl.style.display="none";
+
+  // legend with a small × to delete each category
+  const legendEl=document.getElementById("legend");
+  legendEl.innerHTML = Object.entries(state.categories)
+    .map(([c,v])=>`<span class="chip"><i style="background:var(${v})"></i>${c}<span class="chip-x" data-cat="${c}">×</span></span>`).join("");
+  legendEl.querySelectorAll(".chip-x").forEach(x=>x.onclick=()=>deleteCategory(x.dataset.cat));
+
+  // Build the flat list of cards to show.
+  // combined: cream cards from the __combined__ board array.
+  // split: one colored card per category that has any in-play tasks.
+  const cards=[]; // {board, colorCSS, subtitle, cat, key, bidx}
+  if(state.mode==="combined"){
+    // only build a board if there are actually tasks to show
+    if(allTasksForTab("All").length>0){
+      const boards=ensureBoards("All");
+      boards.forEach((b,i)=>cards.push({
+        board:b, cat:null, key:"__combined__", bidx:i,
+        colorCSS:"var(--paper-card)",                 // light cream for general boards
+        subtitle: boards.length>1 ? "Card "+(i+1)+" of "+boards.length : "What's on your list"
+      }));
+    }
+  } else {
+    const cats=Object.keys(state.categories).filter(c=>allTasksForTab(c).length>0);
+    cats.forEach(c=>{
+      const boards=ensureBoards(c);
+      cards.push({
+        board:boards[0], cat:c, key:c, bidx:0,
+        colorCSS:`var(${state.categories[c]||"--c-home"})`,
+        subtitle:c
+      });
+    });
+  }
+
+  const wrap=document.getElementById("boardWrap");
+  if(cards.length===0){
+    wrap.innerHTML=`<div class="empty">No tasks here yet.<br>Tap “Add tasks” to fill the board.</div>`;
+    return;
+  }
+  if(state.activeBoard>=cards.length) state.activeBoard=0;
+
+  wrap.innerHTML="";
+  const scroller=document.createElement("div");
+  scroller.className="boards-scroller";
+  cards.forEach((cd)=>{
+    const page=document.createElement("div");
+    page.className="board-page";
+    page.dataset.key=cd.key;
+    page.dataset.bidx=cd.bidx;
+
+    const card=document.createElement("div");
+    card.className="card"+(cd.cat?" is-category":"");
+    card.style.setProperty("--card", cd.colorCSS);
+
+    const rule=document.createElement("div"); rule.className="card-rule";
+    const mast=document.createElement("div"); mast.className="card-masthead"; mast.textContent="Bingo";
+    const csub=document.createElement("div"); csub.className="card-sub"; csub.textContent=cd.subtitle;
+
+    card.appendChild(rule);
+    card.appendChild(mast);
+    card.appendChild(csub);
+    card.appendChild(buildGrid(cd.board, cd.cat));
+    page.appendChild(card);
+    scroller.appendChild(page);
+  });
+  wrap.appendChild(scroller);
+
+  if(cards.length>1){
+    const dots=document.createElement("div");
+    dots.className="dots";
+    cards.forEach((_,i)=>{
+      const d=document.createElement("div");
+      d.className="d"+(i===state.activeBoard?" on":"");
+      dots.appendChild(d);
+    });
+    wrap.appendChild(dots);
+
+    const pages=scroller.querySelectorAll(".board-page");
+    scroller.addEventListener("scroll",()=>{
+      const mid=scroller.scrollLeft + scroller.clientWidth/2;
+      let nearest=0, best=Infinity;
+      pages.forEach((p,i)=>{
+        const c=p.offsetLeft + p.offsetWidth/2;
+        const dist=Math.abs(c-mid);
+        if(dist<best){best=dist; nearest=i;}
+      });
+      if(nearest!==state.activeBoard){
+        state.activeBoard=nearest;
+        dots.querySelectorAll(".d").forEach((d,i)=>d.classList.toggle("on", i===nearest));
+        save();
+      }
+    },{passive:true});
+
+    requestAnimationFrame(()=>{
+      const p=pages[state.activeBoard];
+      if(p) scroller.scrollLeft = p.offsetLeft - (scroller.clientWidth-p.offsetWidth)/2;
+    });
+  }
+}
+
+// locate which layout key + board index a task id currently sits in.
+// Only searches the CURRENTLY VISIBLE layout(s), so a stale board from the other
+// mode (e.g. an old __combined__ layout while in split view) can't be matched.
+function findHost(id){
+  const keys = state.mode==="combined"
+    ? ["__combined__"]
+    : Object.keys(state.categories);
+  for(const key of keys){
+    const boards=state.layouts[key]||[];
+    for(let i=0;i<boards.length;i++){
+      if(boards[i].slots.includes(id)) return {key, idx:i, board:boards[i]};
+    }
+  }
+  return null;
+}
+
+// any board with no incomplete tasks left: archive its done tasks, then erase the board
+function sweepFinishedBoards(){
+  for(const key in state.layouts){
+    const boards=state.layouts[key];
+    for(let i=boards.length-1;i>=0;i--){
+      const realIds=boards[i].slots.filter(s=>s!=="free");
+      if(realIds.length===0) continue; // empty board, leave it (only happens transiently)
+      const tasksOn=realIds.map(id=>state.tasks.find(t=>t.id===id)).filter(Boolean);
+      const anyLive=tasksOn.some(t=>!t.done);
+      if(!anyLive){
+        // all done -> archive to Finished and drop from play, then remove the board
+        const doneOn=tasksOn.filter(t=>t.done);
+        state.finished=state.finished.concat(doneOn);
+        const ids=new Set(realIds);
+        state.tasks=state.tasks.filter(t=>!ids.has(t.id));
+        boards.splice(i,1);
+      }
+    }
+    if(boards.length===0) delete state.layouts[key];
+  }
+  if(state.activeBoard>0) state.activeBoard=0;
+}
+
+// ---------- interactions ----------
+function toggleDone(id, cellEl){
+  const t=state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.done=!t.done;
+  t.completedAt = t.done ? Date.now() : null;
+  // tapping the parent completes (or un-completes) all its subtasks too
+  if(t.subs && t.subs.length) t.subs.forEach(s=>s.done=t.done);
+
+  const host=findHost(id);
+  if(t.done && host){
+    const cells=cellsFor(host.board);
+    const side=host.board.side;
+    const tappedIndex=host.board.slots.indexOf(id);     // where the completed task sits
+    const lineWin=findLineBingo(side, cells, tappedIndex);
+    const boardDone=isBoardComplete(cells);
+
+    if(side<=3){
+      // SMALL BOARD: tasks stay put; subtle flash on a line; big animation only when the
+      // whole board is finished, which then clears it.
+      if(boardDone){
+        save(); render();
+        const allCells=[...Array(side*side).keys()];   // highlight the WHOLE board
+        celebrate(allCells, host.key, host.idx);
+        awardBoardComplete();                          // big (+ maybe premium) reward
+        return;
+      }
+      // not finished yet — keep the cell crossed off in place
+      save();
+      updateCellInPlace(cellEl, t);
+      if(lineWin){ smallLineEffect(cellEl, lineWin); awardLineBingo(); }  // small reward
+      return;
+    } else {
+      // BIGGER BOARD: a majority line bingo clears + reshuffles with the full animation
+      if(lineWin){
+        save(); render();
+        celebrate(lineWin, host.key, host.idx);
+        awardLineBingo();
+        // a line bingo here also clears the board's completed tasks -> counts as board progress
+        return;
+      }
+      // no line bingo but board may be fully done -> sweep/erase
+      const before=JSON.stringify(state.layouts);
+      sweepFinishedBoards();
+      if(JSON.stringify(state.layouts)!==before){ awardBoardComplete(); save(); render(); return; }
+    }
+  }
+
+  // un-completing, or no special case: update in place to preserve scroll
+  save();
+  updateCellInPlace(cellEl, t);
+}
+
+// restyle a single cell without rebuilding the board (keeps scroll position)
+function updateCellInPlace(cellEl, t){
+  if(cellEl){
+    cellEl.classList.toggle("done", t.done);
+    cellEl.innerHTML = t.done
+      ? `<span class="cat" style="background:${catColor(t.cat)}"></span>
+         <span class="txt">${t.text}</span>
+         <span class="dur">${durationLabel(t)}</span>`
+      : `<span class="cat" style="background:${catColor(t.cat)}"></span>
+         <span class="age">${ageLabel(t)}</span>
+         <span class="txt">${t.text}</span>`;
+    cellEl.onclick=()=>toggleDone(t.id, cellEl);
+    if(typeof renderFinished==="function") renderFinished();
+    if(typeof renderStats==="function" && statsOpen) renderStats();
+  } else {
+    render();
+  }
+}
+
+// quiet line acknowledgment on a small board: flash the line on THIS board only
+function smallLineEffect(cellEl, line){
+  if(!cellEl) return;
+  const grid=cellEl.closest(".board");
+  if(!grid) return;
+  const cells=grid.querySelectorAll(".cell");
+  line.forEach(i=>{ if(cells[i]){ cells[i].classList.add("winline"); setTimeout(()=>cells[i].classList.remove("winline"),600); }});
+}
+
+function fillFree(board, slotIndex, cardCat){
+  const text=prompt("Add a task to this free cell:");
+  if(!text || !text.trim()) return;
+  // a task added to a category card belongs to that category
+  const cat = cardCat || Object.keys(state.categories)[0];
+  const t={id:uid(), text:text.trim(), cat, added:Date.now(), done:false, completedAt:null};
+  state.tasks.push(t);
+  if(board.slots[slotIndex]==="free") board.slots[slotIndex]=t.id; // exact slot, no reshuffle
+  save();
+  render();
+}
+
+// add a task: into its proper card (its category in split mode, the general board in combined)
+function placeNewTask(t){
+  const tab = state.mode==="combined" ? "All" : t.cat;
+  const key=layoutKey(tab);
+  let boards=state.layouts[key];
+  if(!boards || !boards.length){
+    rebuildBoards(tab, state.seed);   // this already includes t
+    return;
+  }
+  // try to find a board with a real free cell
+  for(let bi=0; bi<boards.length; bi++){
+    const free=freeSlots(boards[bi]);
+    if(free.length){
+      const slot=free[Math.floor(Math.random()*free.length)]; // RANDOM free cell
+      boards[bi].slots[slot]=t.id;
+      return;
+    }
+  }
+  // no free cells anywhere -> start a new overflow board (combined mode only really)
+  boards.push(makeBoard([t.id], state.seed+boards.length));
+}
+
+// which layout keys are currently on screen
+function visibleKeys(){
+  if(state.mode==="combined") return ["__combined__"];
+  return Object.keys(state.categories).filter(c=>allTasksForTab(c).length>0);
+}
+
+// Shuffle: re-randomize positions on every visible card (same tasks, new spots)
+function doShuffle(){
+  state.seed=Date.now();
+  visibleKeys().forEach((tab,ti)=>{
+    const key=layoutKey(tab);
+    const boards=state.layouts[key];
+    if(boards && boards.length){
+      boards.forEach((b,bi)=>{
+        const ids=b.slots.filter(s=>s!=="free");
+        boards[bi]=makeBoard(ids, state.seed+ti*10+bi);
+      });
+    }
+  });
+  save();
+  render();
+}
+
+// Tidy: only merge when it actually reduces the number of boards in a view.
+// If a view already fits in the fewest boards, leave its positions untouched.
+function doTidy(){
+  let changed=false;
+  visibleKeys().forEach((tab)=>{
+    const key=layoutKey(tab);
+    const boards=state.layouts[key];
+    if(!boards) return;
+    const ids=[];
+    boards.forEach(b=>b.slots.forEach(s=>{ if(s!=="free") ids.push(s); }));
+    const idealCount = Math.max(1, Math.ceil(ids.length / (gridSizeFor(ids.length)**2)));
+    // a single ideal board holds gridSizeFor(n)^2 cells, which always fits n,
+    // so the fewest possible board count is 1 here; collapse only if we have more.
+    if(boards.length>1){
+      state.layouts[key]=[ makeBoard(ids, Date.now()) ];
+      changed=true;
+    }
+  });
+  if(changed){ state.activeBoard=0; save(); render(); }
+}
+
+// ---------- celebration ----------
+function celebrate(winLine, key, boardIdx){
+  state.bingos=(state.bingos||0)+1;   // count this bingo
+  // find the exact on-screen page for the winning board (key + index)
+  let grid=null;
+  document.querySelectorAll(".board-page").forEach(p=>{
+    if(p.dataset.key===String(key) && +p.dataset.bidx===boardIdx) grid=p;
+  });
+  if(grid){
+    const cellEls=grid.querySelectorAll(".cell");
+    winLine.forEach(i=>cellEls[i]&&cellEls[i].classList.add("winline"));
+  }
+  const toast=document.createElement("div");
+  toast.className="toast show"; toast.textContent="BINGO! 🎉";
+  document.body.appendChild(toast);
+  confetti();
+  setTimeout(()=>toast.remove(),1700);
+
+  setTimeout(()=>{
+    const boards=state.layouts[key];
+    if(!boards){ save(); render(); return; }
+    const winBoard=boards[boardIdx];
+    if(winBoard){
+      // live (incomplete) tasks left on the winning board
+      const leftover=winBoard.slots.filter(x=>x!=="free")
+                        .map(id=>state.tasks.find(t=>t.id===id))
+                        .filter(t=>t && !t.done).map(t=>t.id);
+      // archive completed tasks from this board, then remove them from play
+      const onBoard=new Set(winBoard.slots.filter(x=>x!=="free"));
+      const archived=state.tasks.filter(t=>t.done && onBoard.has(t.id));
+      state.finished = state.finished.concat(archived);
+      state.tasks=state.tasks.filter(t=>!(t.done && onBoard.has(t.id)));
+
+      if(boards.length>1){
+        // merge leftovers into the NEXT board (or previous if this is last)
+        const target = boardIdx < boards.length-1 ? boardIdx+1 : boardIdx-1;
+        const targetIds = boards[target].slots.filter(x=>x!=="free");
+        boards[target] = makeBoard(targetIds.concat(leftover), Date.now());
+        boards.splice(boardIdx,1);
+      } else {
+        // single board (e.g. a category card): re-lay the leftovers in place — this is the reshuffle
+        boards[0] = makeBoard(leftover, Date.now());
+      }
+      state.activeBoard = Math.min(state.activeBoard, (state.layouts[key]||[]).length-1);
+      if(state.activeBoard<0) state.activeBoard=0;
+    }
+    sweepFinishedBoards();   // erase any board left with no live tasks
+    save();
+    render();
+  },1500);
+}
+function confetti(){
+  const fx=document.getElementById("fx");
+  const cols=["#ffd54a","#ff7a8a","#5ec8ff","#7ee3a3","#c79bff"];
+  for(let i=0;i<70;i++){
+    const c=document.createElement("div"); c.className="conf";
+    c.style.left=Math.random()*100+"vw"; c.style.background=cols[i%cols.length];
+    c.style.animationDuration=(1.2+Math.random()*1.3)+"s"; c.style.animationDelay=(Math.random()*.3)+"s";
+    fx.appendChild(c); setTimeout(()=>c.remove(),2600);
+  }
+}
+
+// ---------- add-task panel ----------
+const addPanel=document.getElementById("addPanel");
+document.getElementById("addBtn").onclick=()=>{
+  addPanel.style.display = addPanel.style.display==="none" ? "block":"none";
+  refreshCatSelect(); renderStaged();
+};
+function ensureCategory(name){
+  name=name.trim();
+  if(!name) return null;
+  if(!state.categories[name]){
+    const used=Object.values(state.categories);
+    state.categories[name]=COLORS.find(c=>!used.includes(c))||COLORS[0];
+  }
+  return name;
+}
+// delete a category — only if it has no tasks anywhere (board or staged)
+function deleteCategory(cat){
+  if(Object.keys(state.categories).length<=1){
+    alert("You need at least one category."); return;
+  }
+  const onBoard=state.tasks.filter(t=>t.cat===cat).length;
+  const inStaging=state.staged.filter(s=>s.cat===cat).length;
+  if(onBoard+inStaging>0){
+    alert(`“${cat}” still has ${onBoard+inStaging} task${onBoard+inStaging>1?"s":""}. Clear or finish them before deleting this category.`);
+    return;
+  }
+  delete state.categories[cat];
+  delete state.layouts[cat];      // remove its (empty) board layout if any
+  save();
+  refreshCatSelect();
+  render();
+}
+function refreshCatSelect(){
+  const sel=document.getElementById("catSelect");
+  const keep=sel.value;
+  const cats=Object.keys(state.categories).filter(c=>c!==UNCAT);
+  sel.innerHTML = cats.map(c=>`<option>${c}</option>`).join("")
+                + `<option value="${UNCAT}">No category</option>`;
+  if(keep && (state.categories[keep]||keep===UNCAT)) sel.value=keep;
+}
+// add one task object to state + place it on its proper card
+function addTaskObj(text, cat){
+  const t={id:uid(), text, cat, added:Date.now(), done:false, completedAt:null};
+  state.tasks.push(t);
+  placeNewTask(t);
+  return t;
+}
+// add many tasks at once. Group by target tab (combined: "All"; split: each category).
+// For each group: if its board has no real tasks yet, size one ideal board;
+// otherwise fill existing free cells, then put any leftover on one new sized board.
+function addBulk(items){
+  // create task objects
+  const made=items.map(it=>{
+    const t={id:uid(), text:it.text, cat:it.cat, added:Date.now(), done:false, completedAt:null};
+    state.tasks.push(t);
+    return t;
+  });
+  // group by the tab each task lands on
+  const groups={};
+  made.forEach(t=>{
+    const tab = state.mode==="combined" ? "All" : t.cat;
+    (groups[tab] = groups[tab] || []).push(t);
+  });
+
+  for(const tab in groups){
+    const group=groups[tab];
+    const key=layoutKey(tab);
+    let boards=state.layouts[key];
+    const placedReal=(boards||[]).reduce((n,b)=>n+b.slots.filter(s=>s!=="free").length,0);
+    if(!boards || !boards.length || placedReal===0){
+      // nothing real on this board yet -> one ideal board for everything in this tab
+      rebuildBoards(tab, state.seed);
+      continue;
+    }
+    // 1) fill existing free cells (positions preserved)
+    const queue=group.slice();
+    for(const board of boards){
+      let free=freeSlots(board);
+      while(queue.length && free.length){
+        const fi=Math.floor(Math.random()*free.length);
+        board.slots[free[fi]]=queue.shift().id;
+        free.splice(fi,1);
+      }
+      if(!queue.length) break;
+    }
+    // 2) leftover -> one new sized board
+    if(queue.length) boards.push(makeBoard(queue.map(t=>t.id), state.seed+boards.length));
+  }
+}
+
+// "Add to list" -> push onto the STAGING list (not the board).
+// Splits on commas and new lines, so several tasks can be added at once,
+// all under the currently-selected category.
+document.getElementById("saveTask").onclick=()=>{
+  const input=document.getElementById("taskInput");
+  const newCat=document.getElementById("newCat");
+  const raw=input.value;
+  let cat=document.getElementById("catSelect").value;
+  if(newCat.value.trim()){ cat=ensureCategory(newCat.value); newCat.value=""; }
+  const parts=raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+  if(!parts.length) return;
+  parts.forEach(text=>state.staged.push({text, cat}));
+  input.value="";
+  syncUncat();
+  save(); refreshCatSelect(); renderStaged();
+};
+
+// "Send to board" -> place all staged tasks at once, then clear staging and close the panel
+document.getElementById("sendBoard").onclick=()=>{
+  if(!state.staged.length) return;
+  const items=state.staged.map(s=>({text:s.text, cat: s.cat===UNCAT ? UNCAT : (ensureCategory(s.cat)||s.cat)}));
+  addBulk(items);
+  state.staged=[];
+  syncUncat();
+  document.getElementById("addPanel").style.display="none";  // close the add panel
+  save(); renderStaged(); render();
+};
+
+// panel staged-list rendering
+function renderStaged(){
+  const el=document.getElementById("stagedList");
+  el.innerHTML = state.staged.length ? state.staged.map((s,i)=>
+    `<div class="tl-item"><i style="background:${catColor(s.cat)}"></i>
+       <span class="nm">${s.text}</span>
+       <span class="x" data-i="${i}">×</span></div>`).join("")
+    : `<div class="empty" style="padding:14px">Nothing staged yet.<br>Add tasks, then press “Send to board.”</div>`;
+  el.querySelectorAll(".x").forEach(x=>x.onclick=()=>{
+    state.staged.splice(+x.dataset.i,1);
+    save(); renderStaged();
+  });
+}
+
+// Finished history section at the bottom: show 5, expand to all
+let finishedExpanded=false;   // show-all within the list
+let finishedOpen=false;       // section collapsed/open
+const FINISHED_PREVIEW=5;
+function finishedTasks(){
+  // archived (cleared) + currently checked-off tasks still on a board
+  const liveDone=state.tasks.filter(t=>t.done);
+  return state.finished.concat(liveDone).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+}
+function renderFinished(){
+  const section=document.getElementById("finishedSection");
+  const toggle=document.getElementById("finishedToggle");
+  const list=document.getElementById("finishedList");
+  const showAll=document.getElementById("showAllBtn");
+  const all=finishedTasks();
+
+  // hide the whole section (toggle included) when there's no history
+  if(all.length===0){ section.style.display="none"; finishedOpen=false; return; }
+  section.style.display="block";
+  toggle.textContent=(finishedOpen?"▾ ":"▸ ")+"Finished ("+all.length+")";
+
+  if(!finishedOpen) return; // collapsed: nothing more to draw
+
+  const shown = finishedExpanded ? all : all.slice(0, FINISHED_PREVIEW);
+  list.innerHTML = shown.map(t=>
+    `<div class="tl-item"><i style="background:${catColor(t.cat)}"></i>
+       <span class="nm">${t.text}</span>
+       <span class="done-dur">${durationLabel(t)}</span>
+       <span class="x" data-id="${t.id}">×</span></div>`).join("");
+  list.querySelectorAll(".x").forEach(x=>x.onclick=()=>{
+    const id=x.dataset.id;
+    const wasLive=state.tasks.some(t=>t.id===id);
+    state.finished=state.finished.filter(t=>t.id!==id);
+    state.tasks=state.tasks.filter(t=>t.id!==id);
+    if(wasLive) state.layouts={};       // a cell vanished; re-lay
+    save(); renderFinished(); render();
+  });
+
+  if(all.length>FINISHED_PREVIEW){
+    showAll.style.display="block";
+    showAll.textContent = finishedExpanded ? "Show less" : ("Show all "+all.length);
+  } else {
+    showAll.style.display="none";
+  }
+}
+document.getElementById("finishedToggle").onclick=()=>{
+  finishedOpen=!finishedOpen;
+  document.getElementById("finishedBody").style.display = finishedOpen ? "block":"none";
+  renderFinished();
+  if(finishedOpen){
+    // bring the section into view so the opened list is visible
+    requestAnimationFrame(()=>{
+      document.getElementById("finishedSection").scrollIntoView({behavior:"smooth", block:"start"});
+    });
+  }
+};
+document.getElementById("showAllBtn").onclick=()=>{ finishedExpanded=!finishedExpanded; renderFinished(); };
+document.getElementById("clearHistoryBtn").onclick=()=>{
+  if(!confirm("Clear your finished-task history? This can't be undone.")) return;
+  // remove archived history; also clear any checked-off tasks still on boards
+  state.finished=[];
+  const hadLiveDone=state.tasks.some(t=>t.done);
+  state.tasks=state.tasks.filter(t=>!t.done);
+  if(hadLiveDone) state.layouts={};
+  finishedExpanded=false;
+  save(); renderFinished(); render();
+};
+
+// ---------- stats ----------
+let statsOpen=false;
+function renderStats(){
+  const body=document.getElementById("statsBody");
+  const done=finishedTasks();            // archived + currently-checked-off
+  if(done.length===0 && !(state.bingos>0)){
+    body.innerHTML=`<div class="stats-empty">Complete some tasks to see your stats.</div>`;
+    return;
+  }
+  // per-category tallies
+  const byCat={};
+  let totalMs=0, totalWithTime=0;
+  done.forEach(t=>{
+    const c=t.cat||"—";
+    byCat[c]=byCat[c]||{count:0, ms:0, withTime:0};
+    byCat[c].count++;
+    if(t.completedAt!=null && t.added!=null){ const d=t.completedAt-t.added; byCat[c].ms+=d; byCat[c].withTime++; totalMs+=d; totalWithTime++; }
+  });
+  const cats=Object.keys(byCat);
+  const total=done.length;
+
+  let html="";
+  // headline numbers
+  html+=`<div class="stat-row"><span class="k">Tasks completed</span><span class="v">${total}</span></div>`;
+  html+=`<div class="stat-row"><span class="k">Bingos achieved</span><span class="v">${state.bingos||0}</span></div>`;
+  if(totalWithTime) html+=`<div class="stat-row"><span class="k">Avg time per task</span><span class="v">${fmtMs(totalMs/totalWithTime)}</span></div>`;
+  // longest-lingering task
+  const timed=done.filter(t=>t.completedAt!=null&&t.added!=null);
+  if(timed.length){
+    const slow=timed.reduce((a,b)=>(b.completedAt-b.added)>(a.completedAt-a.added)?b:a);
+    html+=`<div class="stat-row"><span class="k">Longest to finish</span><span class="v">${slow.text} · ${fmtMs(slow.completedAt-slow.added)}</span></div>`;
+  }
+
+  // category ratio bar
+  html+=`<div class="stat-group-title">By category</div>`;
+  html+=`<div class="ratio-bar">`;
+  cats.forEach(c=>{
+    const pct=Math.round(byCat[c].count/total*100);
+    const color = state.categories[c] ? `var(${state.categories[c]})` : "var(--muted)";
+    html+=`<div class="ratio-seg" style="width:${pct}%; background:${color}"></div>`;
+  });
+  html+=`</div>`;
+  html+=`<div class="ratio-legend">`;
+  cats.forEach(c=>{
+    const pct=Math.round(byCat[c].count/total*100);
+    const color = state.categories[c] ? `var(${state.categories[c]})` : "var(--muted)";
+    html+=`<span class="rl"><i style="background:${color}"></i>${c} · ${byCat[c].count} (${pct}%)</span>`;
+  });
+  html+=`</div>`;
+
+  // per-category average time
+  const timedCats=cats.filter(c=>byCat[c].withTime>0);
+  if(timedCats.length){
+    html+=`<div class="stat-group-title">Avg time per category</div>`;
+    timedCats.forEach(c=>{
+      html+=`<div class="stat-row"><span class="k">${c}</span><span class="v">${fmtMs(byCat[c].ms/byCat[c].withTime)}</span></div>`;
+    });
+  }
+
+  body.innerHTML=html;
+}
+document.getElementById("statsToggle").onclick=()=>{
+  statsOpen=!statsOpen;
+  document.getElementById("statsBody").style.display = statsOpen ? "block":"none";
+  document.getElementById("statsToggle").textContent = (statsOpen?"▾ ":"▸ ")+"Stats";
+  if(statsOpen){
+    renderStats();
+    requestAnimationFrame(()=>{
+      document.getElementById("statsSection").scrollIntoView({behavior:"smooth", block:"start"});
+    });
+  }
+};
+
+// ---------- rewards ----------
+let rewardsOpen=false;
+const TIER_LABEL={small:"Small", big:"Big", premium:"Premium"};
+function renderRewards(){
+  // defined rewards
+  const rl=document.getElementById("rewardList");
+  rl.innerHTML = state.rewards.length ? state.rewards.map(r=>
+    `<div class="tl-item"><span class="rw-tier">${TIER_LABEL[r.tier]}</span>
+       <span class="nm">${r.text}${r.repeatable?"":" · once"}</span>
+       <span class="x" data-id="${r.id}">×</span></div>`).join("")
+    : `<div class="stats-empty">No rewards yet. Add a few above.</div>`;
+  rl.querySelectorAll(".x").forEach(x=>x.onclick=()=>{
+    state.rewards=state.rewards.filter(r=>r.id!==x.dataset.id);
+    save(); renderRewards();
+  });
+  // earned rewards
+  const el=document.getElementById("earnedList");
+  const earned=state.earned.slice().reverse();
+  el.innerHTML = earned.length ? earned.map(e=>
+    `<div class="tl-item earned-item ${e.redeemed?'redeemed':''}" data-id="${e.id}">
+       <span class="rw-tier">${TIER_LABEL[e.tier]}</span>
+       <span class="nm">${e.text}</span>
+       <span class="done-dur">${e.redeemed?'redeemed':'tap to redeem'}</span>
+       <span class="x" data-del="${e.id}">×</span></div>`).join("")
+    : `<div class="stats-empty">Win a bingo to earn a reward.</div>`;
+  el.querySelectorAll(".earned-item").forEach(it=>it.onclick=(ev)=>{
+    if(ev.target.dataset.del){                 // delete this earned reward
+      state.earned=state.earned.filter(x=>x.id!==ev.target.dataset.del);
+      save(); renderRewards(); return;
+    }
+    const e=state.earned.find(x=>x.id===it.dataset.id);
+    if(e){ e.redeemed=!e.redeemed; save(); renderRewards(); }
+  });
+}
+document.getElementById("rewardAdd").onclick=()=>{
+  const text=document.getElementById("rewardText").value.trim();
+  if(!text) return;
+  const tier=document.getElementById("rewardTier").value;
+  const repeatable=document.getElementById("rewardRepeat").checked;
+  state.rewards.push({id:uid(), text, tier, repeatable, used:false});
+  document.getElementById("rewardText").value="";
+  save(); renderRewards();
+};
+document.getElementById("rewardsToggle").onclick=()=>{
+  rewardsOpen=!rewardsOpen;
+  document.getElementById("rewardsBody").style.display = rewardsOpen ? "block":"none";
+  document.getElementById("rewardsToggle").textContent = (rewardsOpen?"▾ ":"▸ ")+"Rewards";
+  if(rewardsOpen){
+    renderRewards();
+    requestAnimationFrame(()=>document.getElementById("rewardsSection").scrollIntoView({behavior:"smooth", block:"start"}));
+  }
+};
+document.getElementById("rewardOk").onclick=()=>{
+  document.getElementById("rewardOverlay").style.display="none";
+  renderRewards();
+  if(rewardQueue.length){ setTimeout(flushRewardQueue, 350); }
+};
+document.getElementById("rewardOverlay").onclick=(e)=>{ if(e.target.id==="rewardOverlay"){ e.currentTarget.style.display="none"; renderRewards(); } };
+
+// pick & award a random reward of a tier; returns the reward or null
+function grantReward(tier){
+  const pool=state.rewards.filter(r=>r.tier===tier && (r.repeatable || !r.used));
+  if(pool.length===0) return null;
+  const r=pool[Math.floor(Math.random()*pool.length)];
+  if(!r.repeatable) r.used=true;
+  const e={id:uid(), text:r.text, tier, at:Date.now(), redeemed:false};
+  state.earned.push(e);
+  save();
+  return e;
+}
+// show the reward popup (queued so it appears after the bingo toast)
+function showRewardPopup(reward){
+  document.getElementById("rewardName").textContent = reward.text;
+  document.getElementById("rewardOverlay").style.display="flex";
+}
+// queue of rewards to show, so multiple don't stomp each other
+let rewardQueue=[];
+function flushRewardQueue(){
+  if(rewardQueue.length===0) return;
+  const next=rewardQueue.shift();
+  showRewardPopup(next);
+}
+// small reward for a line bingo
+function awardLineBingo(){
+  const r=grantReward("small");
+  if(r){ rewardQueue.push(r); setTimeout(flushRewardQueue, 1900); }
+}
+// big reward for completing a whole board (+ premium every 3 boards)
+function awardBoardComplete(){
+  state.boardsCompleted=(state.boardsCompleted||0)+1;
+  const got=[];
+  const big=grantReward("big"); if(big) got.push(big);
+  if(state.boardsCompleted % 3 === 0){
+    const prem=grantReward("premium"); if(prem) got.push(prem);
+  }
+  save();
+  if(got.length){ rewardQueue.push(...got); setTimeout(flushRewardQueue, 1900); }
+}
+
+// ---------- task editor (long-press) ----------
+let editingId=null;
+function openEditor(taskId){
+  const t=state.tasks.find(x=>x.id===taskId);
+  if(!t) return;
+  editingId=taskId;
+  if(!t.subs) t.subs=[];
+  document.getElementById("editText").value=t.text;
+  const sel=document.getElementById("editCat");
+  const cats=Object.keys(state.categories).filter(c=>c!==UNCAT);
+  sel.innerHTML=cats.map(c=>`<option>${c}</option>`).join("")
+              + `<option value="${UNCAT}">No category</option>`;
+  sel.value = t.cat || UNCAT;
+  document.getElementById("editDone").textContent = t.done ? "Mark not done" : "Mark done";
+  renderEditSubs(t);
+  document.getElementById("editOverlay").style.display="flex";
+}
+function renderEditSubs(t){
+  const el=document.getElementById("editSubs");
+  el.innerHTML = (t.subs||[]).map((s,i)=>
+    `<div class="sub-item ${s.done?'done':''}">
+       <input type="checkbox" data-i="${i}" ${s.done?'checked':''}>
+       <span class="nm">${s.text}</span>
+       <span class="x" data-del="${i}">×</span></div>`).join("");
+  el.querySelectorAll("input[type=checkbox]").forEach(cb=>cb.onchange=()=>{
+    t.subs[+cb.dataset.i].done=cb.checked; renderEditSubs(t);
+  });
+  el.querySelectorAll(".x").forEach(x=>x.onclick=()=>{
+    t.subs.splice(+x.dataset.del,1); renderEditSubs(t);
+  });
+}
+function closeEditor(){ editingId=null; document.getElementById("editOverlay").style.display="none"; }
+
+document.getElementById("editClose").onclick=closeEditor;
+document.getElementById("editOverlay").onclick=(e)=>{ if(e.target.id==="editOverlay") closeEditor(); };
+document.getElementById("editSubAdd").onclick=()=>{
+  const t=state.tasks.find(x=>x.id===editingId); if(!t) return;
+  const inp=document.getElementById("editSubInput");
+  const v=inp.value.trim(); if(!v) return;
+  if(!t.subs) t.subs=[];
+  t.subs.push({text:v, done:false});
+  inp.value="";
+  renderEditSubs(t);
+};
+document.getElementById("editSubInput").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("editSubAdd").click(); });
+
+document.getElementById("editSave").onclick=()=>{
+  const t=state.tasks.find(x=>x.id===editingId);
+  if(!t){ closeEditor(); return; }
+  const newText=document.getElementById("editText").value.trim();
+  const newCat=document.getElementById("editCat").value;
+  if(newText) t.text=newText;
+  const catChanged = t.cat!==newCat;
+  t.cat=newCat;
+  if(catChanged) state.layouts={};
+  // auto-complete the parent if it has subtasks and they're all done
+  if(t.subs && t.subs.length){
+    const allDone=t.subs.every(s=>s.done);
+    if(allDone && !t.done){ t.done=true; t.completedAt=Date.now(); }
+    if(!allDone && t.done){ t.done=false; t.completedAt=null; }
+  }
+  syncUncat();
+  closeEditor();
+  save(); render();
+};
+document.getElementById("editDone").onclick=()=>{
+  const t=state.tasks.find(x=>x.id===editingId);
+  if(!t){ closeEditor(); return; }
+  closeEditor();
+  toggleDone(t.id, null);   // null cell -> full render path
+};
+document.getElementById("editDelete").onclick=()=>{
+  if(!confirm("Delete this task?")) return;
+  state.tasks=state.tasks.filter(t=>t.id!==editingId);
+  state.layouts={};   // a cell vanished; re-lay
+  syncUncat();
+  closeEditor();
+  save(); render();
+};
+
+// ---------- wire up ----------
+document.getElementById("appTitle").textContent = state.title;
+document.getElementById("titleEdit").onclick=()=>{
+  const next=prompt("Name your board:", state.title);
+  if(next===null) return;
+  state.title = next.trim() || "Task Bingo";
+  document.getElementById("appTitle").textContent = state.title;
+  save();
+};
+document.getElementById("helpBtn").onclick=()=>{ document.getElementById("rulesOverlay").style.display="flex"; };
+document.getElementById("rulesClose").onclick=()=>{ document.getElementById("rulesOverlay").style.display="none"; };
+document.getElementById("rulesOverlay").onclick=(e)=>{ if(e.target.id==="rulesOverlay") e.currentTarget.style.display="none"; };
+document.querySelectorAll("#modeSeg button").forEach(b=>{
+  b.onclick=()=>{ state.mode=b.dataset.mode; state.activeBoard=0; save(); render(); };
+});
+document.getElementById("shuffleBtn").onclick=doShuffle;
+document.getElementById("tidyBtn").onclick=doTidy;
+document.getElementById("clearBtn").onclick=()=>{
+  if(!confirm("Clear all current tasks and boards? Your Finished history will be kept.")) return;
+  state.tasks=[];
+  state.staged=[];
+  state.layouts={};
+  state.activeBoard=0;
+  save();
+  render();
+};
+document.getElementById("taskInput").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("saveTask").click();});
+
+render();
+</script>
+</body>
+</html>
